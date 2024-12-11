@@ -97,7 +97,7 @@ export default class Outline {
       }
 
       // Case: The item is at the same level as the previous
-      if (level == prevLevel) {
+      if (parent && level == prevLevel) {
         parent.adopt(outline);
 
         prevOutline = outline;
@@ -105,7 +105,7 @@ export default class Outline {
       }
 
       // Case: The item is at a deeper level and should be nested into the previous outline
-      if (level > prevLevel) {
+      if (parent && level > prevLevel) {
         parent = prevOutline;
         parent.adopt(outline);
 
@@ -116,10 +116,11 @@ export default class Outline {
       // Case: The item is at a shallower level and should be nested into the last outline that would be its parent
       if (level < prevLevel) {
         // We need to find the correct parent, so go backwards until we are at the right level.
-        while (level <= parent.level) {
+        while (parent && level <= parent.level) {
           parent = parent.parent;
         }
-        parent.adopt(outline);
+        if (parent)
+          parent.adopt(outline);
 
         prevOutline = outline;
         return;
@@ -170,6 +171,42 @@ export default class Outline {
       if (outline.children.length > 0)
         root.appendChild(recNestLists(outline.children));
     });
+
+    return root;
+  }
+
+  toNodeTree(callback) {
+    let outlines = this.getNested(this.#items);
+
+    // Create our root list node and add some styling
+    const root = document.createElement("ul");
+    root.setAttribute("class", "outline-content");
+
+    // This is our recursive function to nest the lists
+    // It takes the children array of an outline and wraps it in an unordered list while checking for grandchildren.
+    // It also converts the children to list items and adds them to the parent list.
+    let recNestLists = (outlines, parent) => {
+      const list = document.createElement("ul");
+      list.setAttribute("class", "outline-list");
+
+      // Go through each child
+      outlines.map((outline) => {
+        // Convert it to a list item and add it to the list
+        list.appendChild(outline.toListItem());
+
+        // If it has children, perform this same function on the child array and append that list to the current one.
+        if (outline.children.length > 0) recNestLists(outline.children, list);
+
+        // Call the callback function
+        callback(outline, list);
+      });
+
+      // Append the list to the parent
+      parent.appendChild(list);
+    };
+
+    // Create our top level items in our list.
+    recNestLists(outlines, root);
 
     return root;
   }

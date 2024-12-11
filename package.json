@@ -1,5 +1,5 @@
 {
   "name": "@ocdla/outline",
   "version": "1.0.0",
-  "main": "./src/Outline.js"
+  "main": "Outline.js"
 }
