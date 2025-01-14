@@ -1,56 +1,66 @@
-import OutlineItem from "./OutlineItem.js";
+import OutlineEntry from "./OutlineEntry.js";
 export default class Outline {
-  // The outline class takes in document from which the outline will be built.
-  #doc;
+
+  static DEFAULTS = {
+    selectors: ["h1", "h2", "h3", "h4", "h5", "h6"],
+    intersectionObserver: {
+      options: {
+        rootMargin: "0px",
+        threshold: 0.1,
+      },
+      fn: this.handleIntersection,
+    },
+    itemClassName: "outline-item",
+    rootClassName: "outline-content",
+  };
+ 
+  #config = {};
 
   // The flat array of items in the outline.
   #items;
 
-  constructor(doc) {
-    this.#doc = doc;
-    this.#items = new Array();
+  constructor(props) {
+    this.#config = {...Outline.DEFAULTS, ...props};
   }
 
-  /**
-   * Returns the flat array of items in the outline in order of appearance.
-   * @returns {Array<OutlineItem>} Flat array of all outline items in order.
-   */
-  getFlattened() {
-    return this.#items;
-  }
+  // /**
+  //  * Returns the flat array of items in the outline in order of appearance.
+  //  * @returns {Array<OutlineEntry>} Flat array of all outline items in order.
+  //  */
+  // getFlattened() {
+  //   return this.#items;
+  // }
 
-  /**
-   * Nests children based on their level into other outline items.
-   * @returns {Array<OutlineItems>} Nested array of top level outline items with order of appearance preserved.
-   */
-  getNested() {
-    return Outline.nestChildren(this.#items);
-  }
+  // /**
+  //  * Nests children based on their level into other outline items.
+  //  * @returns {Array<OutlineItems>} Nested array of top level outline items with order of appearance preserved.
+  //  */
+  // getNested() {
+  //   return Outline.nestChildren(this.#items);
+  // }
 
-  /**
-   * Creates an outline from the current document.
-   * @returns {Outline}
-   */
-  static fromCurrentDocument() {
-    //TODO: Each outline item contains a text label, id, and level.
-    // Outline class takes in document from which the outline will be built.
-    return new Outline(document);
-  }
+  // /**
+  //  * Creates an outline from the current document.
+  //  * @returns {Outline}
+  //  */
+  // static fromCurrentDocument() {
+  //   //TODO: Each outline item contains a text label, id, and level.
+  //   // Outline class takes in document from which the outline will be built.
+  //   return new Outline(document);
+  // }
 
   /**
    * Searches the instanced document for the outline items based on the selectors passed in and maintains the hierarchy based on the order of arguments passed in.
    * @param {...String} selectors List of selectors to search for in order of importance.
    */
-  outline() {
-    let selectors = Array.from(arguments).map((arg) =>
-      arg.toLowerCase().trim()
-    );
+  build(node, flattened=false) {
+    let selectors = this.#config.selectors;
 
     // Take a comma separated string of html selectors
-    const elems = [...this.#doc.querySelectorAll(selectors.join(","))];
+    const elems = [...node.querySelectorAll(selectors.join(","))];
 
     // Process all headings with anchor links and styling
-    this.#items = elems.map((elem) => {
+    const items = elems.map((elem) => {
       const header = elem.children[0];
       const label = header.textContent;
       if (!elem.id)
@@ -69,21 +79,22 @@ export default class Outline {
         }
       }
 
-      return new OutlineItem(label, elem.id, level);
+      return new OutlineEntry(label, elem.id, level);
     });
+    return flattened ? items : Outline.nestChildren(items); 
   }
 
   /**
    * Nests children based on their level into other outlines.
-   * @param {Array<Outline>} outlines
+   * @param {Array<Outline>} items
    * @returns {Array<Outline>} Array of top level outline objects. The array itself is the outline tree.
    */
-  static nestChildren(outlines) {
-    const root = new OutlineItem();
+  static nestChildren(items) {
+    const root = new OutlineEntry();
     let parent = root;
     let prevOutline = null;
 
-    outlines.map((outline) => {
+    items.map((outline) => {
       const level = outline.level;
       let prevLevel = prevOutline ? prevOutline.level : 1;
 
@@ -141,14 +152,14 @@ export default class Outline {
 
     // Create our root list node and add some styling
     const root = document.createElement("ul");
-    root.setAttribute("class", "outline-content");
+    root.setAttribute("class", this.#config.rootClassName);
 
     // This is our recursive function to nest the lists
     // It takes the children array of an outline and wraps it in an unordered list while checking for grandchildren.
     // It also converts the children to list items and adds them to the parent list.
     let recNestLists = (outlines) => {
       const list = document.createElement("ul");
-      list.setAttribute("class", "outline-list");
+      list.setAttribute("class", this.#config.itemClassName);
 
       // Go through each child
       outlines.map((outline) => {
@@ -180,14 +191,14 @@ export default class Outline {
 
     // Create our root list node and add some styling
     const root = document.createElement("ul");
-    root.setAttribute("class", "outline-content");
+    root.setAttribute("class", this.#config.rootClassName);
 
     // This is our recursive function to nest the lists
     // It takes the children array of an outline and wraps it in an unordered list while checking for grandchildren.
     // It also converts the children to list items and adds them to the parent list.
     let recNestLists = (outlines, parent) => {
       const list = document.createElement("ul");
-      list.setAttribute("class", "outline-list");
+      list.setAttribute("class", this.#config.itemClassName);
 
       // Go through each child
       outlines.map((outline) => {
@@ -238,30 +249,60 @@ export default class Outline {
    * @param {string} options.rootMargin - The margin around the root. Defaults to "0px".
    * @param {number} options.threshold - Indicates at what percentage of the target's visibility the observer's callback should be executed. Defaults to 1.0.
    */
-  addIntersectionObserver(fn, options) {
-    if (!options)
-      options = {
-        root: this.#doc,
-        rootMargin: "0px",
-        threshold: 0.1,
-      };
+  addIntersectionObserver() {
+    const options = {...this.#config.intersectionObserver.options, root: this.#config.doc};
+    const fn = this.#config.intersectionObserver.fn;
     const intersectionObserver = new IntersectionObserver(fn, options);
     this.#items.map((item) => {
       if (!item.href) return;
-      let node = this.#doc.getElementById(item.href);
+      let node = options.root.getElementById(item.href);
       if (!node) return;
       intersectionObserver.observe(node);
     });
   }
 
+  handleIntersection(observedEntries) {
+    // Filter out entries that are not intersecting
+    const intersectingEntries = observedEntries.filter(
+      (entry) => entry.isIntersecting
+    );
+
+    // Make sure we have at least one entry remaining
+    if (intersectingEntries.length == 0) return;
+
+    // Iterate through our outline items and clear their styles.
+    this.outline.clearAllActive(
+      ".bg-black.text-white",
+      document.querySelector("#outline")
+    );
+
+    // We only want the first entry. It's possible to scroll through multiple headings at once.
+    const entry = intersectingEntries[0];
+    const id = entry.target.id;
+    const outlineListItem = document.querySelector(`[id='${id}-${this.#config.itemClassName}']`);
+
+    //When we see a new item, we want to make sure the outline sidebar is scrolling to it.
+    if (outlineListItem != null) {
+      outlineListItem.scrollIntoView({
+        behavior: "instant",
+        block: "nearest",
+        inline: "center",
+      });
+
+      // Add the active class styling to the current item.
+      outlineListItem.classList.add("bg-black");
+      outlineListItem.classList.add("text-white");
+    }
+  };
+
   /**
    * Clears the styles of all outline items in the document.
    */
-  clearAllActive(classList = ".outline-item-active", doc = this.#doc) {
-    const classes = classList
+  clearAllActive() {
+    const doc = this.#config.doc;
+    const classes = this.#config.itemClassName + "-active"
       .split(".")
       .filter((item) => item.trim().length > 0);
-
     doc.querySelectorAll(classList).forEach((item) => {
       classes.forEach((className) => item.classList.remove(className));
     });

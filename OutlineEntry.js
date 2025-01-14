@@ -1,4 +1,4 @@
-export default class OutlineItem {
+export default class OutlineEntry {
 
     /**
      * An outline item in the document that references a specific dom element in the document.
