@@ -3,16 +3,6 @@ export default class Outline {
 
   static DEFAULTS = {
     selectors: ["h1", "h2", "h3", "h4", "h5", "h6"],
-    intersectionObserver: {
-      options: {
-        rootMargin: "0px",
-        threshold: 0.1,
-      },
-      fn: function(entries, observer) {
-        console.log('fn called!');
-        this.handleIntersection(entries, observer);
-      }
-    },
     itemClassName: "outline-item",
     rootClassName: "outline-content",
   };
@@ -86,7 +76,7 @@ export default class Outline {
 
       return new OutlineEntry(label, elem.id, level);
     });
-    return flattened ? items : Outline.nestChildren(this.#items); 
+    return flattened ? this.#items : Outline.nestChildren(this.#items); 
   }
 
   /**
@@ -243,76 +233,5 @@ export default class Outline {
     const serializer = new XMLSerializer();
     const subset = doc.querySelector(".WordSection1");
     return serializer.serializeToString(subset);
-  }
-
-  /**
-   * Adds an Intersection Observer to the items in the current instance.
-   *
-   * @param {Function} fn - The callback function to be called when an intersection occurs.
-   * @param {Object} options - The options for the Intersection Observer. If not provided, default options are used.
-   * @param {HTMLElement} options.root - The element that is used as the viewport for checking visibility of the target. Defaults to the outline document.
-   * @param {string} options.rootMargin - The margin around the root. Defaults to "0px".
-   * @param {number} options.threshold - Indicates at what percentage of the target's visibility the observer's callback should be executed. Defaults to 1.0.
-   */
-  addIntersectionObserver(doc) {
-    const options = {...this.#config.intersectionObserver.options, root: doc};
-    //const fn = this.#config.intersectionObserver.fn;
-    const intersectionObserver = new IntersectionObserver( this.handleIntersection, options);
-    this.#items.map((item) => {
-      if (!item.href) return;
-      let node = doc.getElementById(item.href);
-      if (!node) return;
-      intersectionObserver.observe(node);
-    });
-  }
-
-  handleIntersection(observedEntries) {
-    console.log("handleIntersection");
-    // Filter out entries that are not intersecting
-    const intersectingEntries = observedEntries.filter(
-      (entry) => entry.isIntersecting
-    );
-
-    // Make sure we have at least one entry remaining
-    if (intersectingEntries.length == 0) return;
-
-    // Iterate through our outline items and clear their styles.
-    this.#items.map((item) => {
-      if (!item.href) return;
-      let node = document.getElementById(item.href);
-      if (!node) return;
-      node.classList.remove("bg-black");
-      node.classList.remove("text-white");
-    });
-
-    // We only want the first entry. It's possible to scroll through multiple headings at once.
-    const entry = intersectingEntries[0];
-    const id = entry.target.id;
-    const outlineListItem = document.querySelector(`[id='${id}-${this.#config.itemClassName}']`);
-
-    //When we see a new item, we want to make sure the outline sidebar is scrolling to it.
-    if (outlineListItem != null) {
-      outlineListItem.scrollIntoView({
-        behavior: "instant",
-        block: "nearest",
-        inline: "center",
-      });
-
-      // Add the active class styling to the current item.
-      outlineListItem.classList.add("bg-black");
-      outlineListItem.classList.add("text-white");
-    }
-  };
-
-  /**
-   * Clears the styles of all outline items in the document.
-   */
-  clearAllActive(doc, classList) {
-    // const classes = this.#config.itemClassName + "-active"
-    //   .split(".")
-    //   .filter((item) => item.trim().length > 0);
-    doc.querySelectorAll(classList).forEach((item) => {
-      classes.forEach((className) => item.classList.remove(className));
-    });
   }
 }
