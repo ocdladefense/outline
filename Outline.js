@@ -8,7 +8,10 @@ export default class Outline {
         rootMargin: "0px",
         threshold: 0.1,
       },
-      fn: this.handleIntersection,
+      fn: function(entries, observer) {
+        console.log('fn called!');
+        this.handleIntersection(entries, observer);
+      }
     },
     itemClassName: "outline-item",
     rootClassName: "outline-content",
@@ -21,6 +24,8 @@ export default class Outline {
 
   constructor(props) {
     this.#config = {...Outline.DEFAULTS, ...props};
+    this.#items = [];
+    //this.handleIntersection = this.handleIntersection.bind(this);
   }
 
   // /**
@@ -60,7 +65,7 @@ export default class Outline {
     const elems = [...node.querySelectorAll(selectors.join(","))];
 
     // Process all headings with anchor links and styling
-    const items = elems.map((elem) => {
+    this.#items = elems.map((elem) => {
       const header = elem.children[0];
       const label = header.textContent;
       if (!elem.id)
@@ -81,7 +86,7 @@ export default class Outline {
 
       return new OutlineEntry(label, elem.id, level);
     });
-    return flattened ? items : Outline.nestChildren(items); 
+    return flattened ? items : Outline.nestChildren(this.#items); 
   }
 
   /**
@@ -249,19 +254,20 @@ export default class Outline {
    * @param {string} options.rootMargin - The margin around the root. Defaults to "0px".
    * @param {number} options.threshold - Indicates at what percentage of the target's visibility the observer's callback should be executed. Defaults to 1.0.
    */
-  addIntersectionObserver() {
-    const options = {...this.#config.intersectionObserver.options, root: this.#config.doc};
-    const fn = this.#config.intersectionObserver.fn;
-    const intersectionObserver = new IntersectionObserver(fn, options);
+  addIntersectionObserver(doc) {
+    const options = {...this.#config.intersectionObserver.options, root: doc};
+    //const fn = this.#config.intersectionObserver.fn;
+    const intersectionObserver = new IntersectionObserver( this.handleIntersection, options);
     this.#items.map((item) => {
       if (!item.href) return;
-      let node = options.root.getElementById(item.href);
+      let node = doc.getElementById(item.href);
       if (!node) return;
       intersectionObserver.observe(node);
     });
   }
 
   handleIntersection(observedEntries) {
+    console.log("handleIntersection");
     // Filter out entries that are not intersecting
     const intersectingEntries = observedEntries.filter(
       (entry) => entry.isIntersecting
@@ -271,10 +277,13 @@ export default class Outline {
     if (intersectingEntries.length == 0) return;
 
     // Iterate through our outline items and clear their styles.
-    this.outline.clearAllActive(
-      ".bg-black.text-white",
-      document.querySelector("#outline")
-    );
+    this.#items.map((item) => {
+      if (!item.href) return;
+      let node = document.getElementById(item.href);
+      if (!node) return;
+      node.classList.remove("bg-black");
+      node.classList.remove("text-white");
+    });
 
     // We only want the first entry. It's possible to scroll through multiple headings at once.
     const entry = intersectingEntries[0];
@@ -298,11 +307,10 @@ export default class Outline {
   /**
    * Clears the styles of all outline items in the document.
    */
-  clearAllActive() {
-    const doc = this.#config.doc;
-    const classes = this.#config.itemClassName + "-active"
-      .split(".")
-      .filter((item) => item.trim().length > 0);
+  clearAllActive(doc, classList) {
+    // const classes = this.#config.itemClassName + "-active"
+    //   .split(".")
+    //   .filter((item) => item.trim().length > 0);
     doc.querySelectorAll(classList).forEach((item) => {
       classes.forEach((className) => item.classList.remove(className));
     });
